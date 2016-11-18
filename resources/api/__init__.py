@@ -27,3 +27,7 @@ class RespaAPIRouter(routers.DefaultRouter):
             self._register_view(view)
         for view in users_views:
             self._register_view(view)
+
+    def unregister_view(self, view):
+        self.registered_api_views = set(v for v in self.registered_api_views if v != view)
+        self.registry = [v for v in self.registry if v[1] != view]

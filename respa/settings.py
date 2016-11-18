@@ -62,6 +62,7 @@ INSTALLED_APPS = [
 
     'resources',
     'users',
+    'events',
 ]
 
 MIDDLEWARE_CLASSES = (

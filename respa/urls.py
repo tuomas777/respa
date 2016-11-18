@@ -19,7 +19,7 @@ from django.conf.urls.static import static
 from helusers import admin
 from django.utils.translation import ugettext_lazy
 
-from resources.api import RespaAPIRouter
+from resources.api import RespaAPIRouter, ReservationViewSet
 from resources.views.images import ResourceImageView
 from resources.views.ical import ICalFeedView
 from resources.views import testing as testing_views
@@ -27,6 +27,11 @@ from resources.views import testing as testing_views
 admin.autodiscover()
 
 router = RespaAPIRouter()
+
+if 'events' in settings.INSTALLED_APPS:
+    from events.api import EventReservationViewSet
+    router.unregister_view(ReservationViewSet)
+    router._register_view({'name': 'reservation', 'class': EventReservationViewSet})
 
 urlpatterns = [
     url(r'^admin/', include(admin.site.urls)),
