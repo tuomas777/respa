@@ -152,6 +152,9 @@ class Resource(ModifiableModel, AutoIdentifiedModel):
     class Meta:
         verbose_name = _("resource")
         verbose_name_plural = _("resources")
+        permissions = (
+            ('can_make_reservation', _('Can make reservation')),
+        )
 
     def __str__(self):
         return "%s (%s)/%s" % (get_translated(self, 'name'), self.id, self.unit)
@@ -376,7 +379,7 @@ class Resource(ModifiableModel, AutoIdentifiedModel):
         return user.is_staff
 
     def can_make_reservations(self, user):
-        return self.is_admin(user) or self.reservable
+        return self.is_admin(user) or self.reservable or user.has_perm('can_make_reservation', self)
 
     def can_approve_reservations(self, user):
         return self.is_admin(user) and user.has_perm('can_approve_reservation', self.unit)

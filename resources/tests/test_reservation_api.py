@@ -2,6 +2,7 @@ import pytest
 import datetime
 import re
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.urlresolvers import reverse
 from django.core import mail
 from django.test.utils import override_settings
@@ -1197,3 +1198,25 @@ def test_detail_endpoint_does_not_need_all_true_filter(user_api_client, user, re
     detail_url = reverse('reservation-detail', kwargs={'pk': reservation_in_the_past.pk})
     response = user_api_client.get(detail_url)
     assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_can_make_reservation_permission(list_url, user_api_client, user, resource_in_unit, resource_in_unit2,
+                                         reservation_data):
+    resource_in_unit.reservable = False
+    resource_in_unit.save(update_fields=('reservable',))
+
+    needed_group = Group.objects.create(name='resource in unit reservers')
+    assign_perm('can_make_reservation', needed_group, resource_in_unit)
+    some_other_group = Group.objects.create(name='resource in unit 2 reservers')
+    assign_perm('can_make_reservation', some_other_group, resource_in_unit2)
+
+    user.groups.add(some_other_group)
+    response = user_api_client.post(list_url, data=reservation_data)
+    assert response.status_code == 403
+
+    user.groups.add(needed_group)
+    response = user_api_client.post(list_url, data=reservation_data)
+    assert response.status_code == 201
+
+
