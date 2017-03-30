@@ -1,8 +1,7 @@
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib import admin
-from django.utils.translation import ugettext_lazy as _
 
-from users.models import User
+from users.models import ADGroupMapping, User
 
 
 class UserAdmin(DjangoUserAdmin):
@@ -10,4 +9,9 @@ class UserAdmin(DjangoUserAdmin):
         (None, {'fields': ('department_name', 'uuid', 'favorite_resources')}),
     )
 
+class ADGroupMappingAdmin(admin.ModelAdmin):
+    pass
+
+
 admin.site.register(User, UserAdmin)
+admin.site.register(ADGroupMapping, ADGroupMappingAdmin)

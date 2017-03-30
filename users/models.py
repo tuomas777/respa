@@ -3,6 +3,7 @@ from helusers.models import AbstractUser
 from django.utils.crypto import get_random_string
 from django.utils.translation import ugettext_lazy as _
 from django.conf import settings
+from django.contrib.auth.models import Group
 from resources.models import Resource
 
 
@@ -30,3 +31,16 @@ class User(AbstractUser):
             return settings.LANGUAGES[0][0]
         else:
             return self.preferred_language
+
+
+class ADGroupMapping(models.Model):
+    ad_group_name = models.CharField(max_length=32, verbose_name=_('AD group name'))
+    group = models.OneToOneField(Group, verbose_name=_('Group'), related_name='ad_group_mapping',
+                                 on_delete=models.CASCADE)
+
+    class Meta:
+        verbose_name = _('AD group mapping')
+        verbose_name_plural = _('AD group mappings')
+
+    def __str__(self):
+        return '%s -> %s' % (self.ad_group_name, self.group.name)
