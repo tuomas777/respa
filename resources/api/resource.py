@@ -11,6 +11,7 @@ from django.db.models import Q
 from django.core.urlresolvers import reverse
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point
+from django.utils.dateparse import parse_datetime
 from resources.pagination import PurposePagination
 from rest_framework import exceptions, filters, mixins, serializers, viewsets, response, status
 from rest_framework.decorators import detail_route
@@ -18,7 +19,8 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.fields import BooleanField
 
 from munigeo import api as munigeo_api
-from resources.models import (Purpose, Resource, ResourceImage, ResourceType, ResourceEquipment, TermsOfUse)
+from resources.models import (Purpose, Reservation, Resource, ResourceImage, ResourceType, ResourceEquipment,
+                              TermsOfUse)
 from .base import TranslatedModelSerializer, register_view
 from .reservation import ReservationSerializer
 from .unit import UnitSerializer
@@ -382,11 +384,38 @@ class ResourceListViewSet(munigeo_api.GeoModelAPIView, mixins.ListModelMixin,
                      'name_sv', 'description_sv', 'unit__name_sv',
                      'name_en', 'description_en', 'unit__name_en')
 
+    def _deserialize_datetime(self, value):
+        try:
+            return serializers.DateTimeField().to_internal_value(value)
+        except serializers.ValidationError:
+            raise exceptions.ParseError("'%s' must be a timestamp in ISO 8601 format" % value)
+
+    # it doesn't seem to be easy to implement this in the FilterSet
+    # because both filters need to be taken into account at the same time
+    def _filter_available(self, queryset):
+        available_start = self.request.query_params.get('available_start')
+        available_end = self.request.query_params.get('available_end')
+
+        if not (available_start or available_end):
+            return queryset
+
+        reservations = Reservation.objects.all()
+        if available_start:
+            available_start_dt = self._deserialize_datetime(available_start)
+            reservations = reservations.filter(end__gt=available_start_dt)
+        if available_end:
+            available_end_dt = self._deserialize_datetime(available_end)
+            reservations = reservations.filter(begin__lt=available_end_dt)
+
+        return queryset.exclude(reservations__in=reservations)
+
     def get_queryset(self):
+        queryset = self._filter_available(self.queryset)
+
         if self.request.user.is_staff:
-            return self.queryset
+            return queryset
         else:
-            return self.queryset.filter(public=True)
+            return queryset.filter(public=True)
 
 
 class ResourceViewSet(munigeo_api.GeoModelAPIView, mixins.RetrieveModelMixin, viewsets.GenericViewSet):

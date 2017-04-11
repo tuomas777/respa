@@ -395,6 +395,18 @@ paths:
           required: false
           type: string
           description: Only return resources that contain the specified piece(s) of equipment. Accepts multiple comma-separated values.
+        - name: available_start
+          description: Only return resources that are free starting from this datetime.
+          in: query
+          required: false
+          type: string
+          format: date-time
+        - name: available_end
+          description: Only return resources that are free until this datetime.
+          in: query
+          required: false
+          type: string
+          format: date-time
         - name: page
           in: query
           description: Result page number

@@ -6,8 +6,8 @@ from django.contrib.gis.geos import Point
 from django.utils import timezone
 from freezegun import freeze_time
 
-from resources.models import Equipment, ReservationMetadataSet, Resource, ResourceEquipment, ResourceType
-from .utils import check_only_safe_methods_allowed
+from resources.models import Equipment, Reservation, ReservationMetadataSet, Resource, ResourceEquipment, ResourceType
+from .utils import assert_response_objects, check_only_safe_methods_allowed
 
 
 @pytest.fixture
@@ -409,3 +409,61 @@ def test_resource_equipment_filter(api_client, resource_in_unit, resource_in_uni
     response = api_client.get(list_url + '?equipment=%s,%s' % (equipment_1.id, equipment_2.id))
     assert response.status_code == 200
     assert {resource['id'] for resource in response.data['results']} == {resource_in_unit.id, resource_in_unit2.id}
+
+
+@pytest.mark.parametrize('filtering, expected_resource_indexes', (
+    ({}, [0, 1, 2]),
+    ({'available_start': '2115-04-04T17:00:00+02:00'}, []),
+    ({'available_start': '2115-04-04T18:00:00+02:00'}, [0]),
+    ({'available_start': '2115-04-04T18:00:00+02:00', 'available_end': '2116-04-04T06:00:00+02:00'}, [0, 1, 2]),
+    ({'available_start': '2115-04-04T18:00:00+02:00', 'available_end': '2116-04-04T07:00:00+02:00'}, [0, 2]),
+    ({'available_start': '2115-04-04T17:00:00+02:00', 'available_end': '2116-04-04T07:00:00+02:00'}, [2]),
+    ({'available_end': '2115-04-04T06:00:00+02:00'}, [0, 1, 2]),
+    ({'available_end': '2116-04-04T06:00:00+02:00'}, [1, 2]),
+    ({'available_end': '2118-04-04T18:00:00+02:00'}, []),
+))
+@pytest.mark.django_db
+def test_resource_available_filters(user_api_client, list_url, user, resource_in_unit, resource_in_unit2,
+                                    resource_in_unit3, filtering, expected_resource_indexes):
+    resources = (resource_in_unit, resource_in_unit2, resource_in_unit3)
+    Reservation.objects.create(
+        resource=resource_in_unit,
+        begin='2115-04-04T06:00:00+02:00',
+        end='2115-04-04T18:00:00+02:00',
+        user=user,
+    ),
+    Reservation.objects.create(
+        resource=resource_in_unit2,
+        begin='2116-04-04T06:00:00+02:00',
+        end='2116-04-04T18:00:00+02:00',
+        user=user,
+    ),
+    Reservation.objects.create(
+        resource=resource_in_unit3,
+        begin='2117-04-04T06:00:00+02:00',
+        end='2117-04-04T18:00:00+02:00',
+        user=user,
+    ),
+    Reservation.objects.create(
+        resource=resource_in_unit3,
+        begin='2118-04-04T06:00:00+02:00',
+        end='2118-04-04T18:00:00+02:00',
+        user=user,
+    )
+
+    response = user_api_client.get(list_url, filtering)
+    assert response.status_code == 200
+    assert_response_objects(response, [resources[index] for index in expected_resource_indexes])
+
+
+@pytest.mark.parametrize('filtering', (
+    {'available_start': 'foo'},
+    {'available_end': None},
+    {'available_end': '2115-04-04T25:00:00+0200'},
+    {'available_end': '2115-04-04'},
+))
+@pytest.mark.django_db
+def test_resource_available_filters_errors(user_api_client, list_url, user, filtering):
+    response = user_api_client.get(list_url, filtering)
+    assert response.status_code == 400
+    assert 'must be a timestamp in ISO 8601 format' in str(response.data)
