@@ -139,7 +139,7 @@ class TermsOfUseSerializer(TranslatedModelSerializer):
         fields = ('text',)
 
 
-class ResourceSerializer(TranslatedModelSerializer, munigeo_api.GeoModelSerializer):
+class ResourceSerializerBase(TranslatedModelSerializer, munigeo_api.GeoModelSerializer):
     purposes = PurposeSerializer(many=True)
     images = NestedResourceImageSerializer(many=True)
     equipment = ResourceEquipmentSerializer(many=True, read_only=True, source='resource_equipment')
@@ -270,6 +270,15 @@ class ResourceSerializer(TranslatedModelSerializer, munigeo_api.GeoModelSerializ
         model = Resource
         exclude = ('reservation_requested_notification_extra', 'reservation_confirmed_notification_extra',
                    'access_code_type', 'reservation_metadata_set')
+
+
+class SubResourceSerializer(ResourceSerializerBase):
+    class Meta(ResourceSerializerBase.Meta):
+        exclude = ResourceSerializerBase.Meta.exclude + ('sub_resources',)
+
+
+class ResourceSerializer(ResourceSerializerBase):
+    sub_resources = SubResourceSerializer(many=True)
 
 
 class ResourceDetailsSerializer(ResourceSerializer):
@@ -588,10 +597,12 @@ class ResourceListViewSet(munigeo_api.GeoModelAPIView, mixins.ListModelMixin,
         return context
 
     def get_queryset(self):
+        queryset = self.queryset.filter(parent_resources=None)
+
         if is_general_admin(self.request.user):
-            return self.queryset
+            return queryset
         else:
-            return self.queryset.filter(public=True)
+            return queryset.filter(public=True)
 
 
 class ResourceViewSet(munigeo_api.GeoModelAPIView, mixins.RetrieveModelMixin,
