@@ -370,7 +370,10 @@ class NotificationListener(object):
             changed_resources.add(event.resource)
 
         for resource in changed_resources:
-            sync_from_exchange(resource)
+            try:
+                sync_from_exchange(resource)
+            except Exception:  # noqa
+                log.exception('Could not sync {}'.format(resource))
 
     def close(self):
         for listener in self.listeners.values():

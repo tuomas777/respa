@@ -7,6 +7,9 @@ from respa_exchange.management.base import configure_logging, get_active_downloa
 from respa_exchange.models import ExchangeConfiguration
 
 
+logger = logging.getLogger(__name__)
+
+
 class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('-l', action='store_true', dest='list', default=False,
@@ -32,4 +35,7 @@ class Command(BaseCommand):
             resources = select_resources(resources, options['resources'])
 
         for resource in resources:
-            sync_from_exchange(resource)
+            try:
+                sync_from_exchange(resource)
+            except Exception:  # noqa
+                logger.exception('Could not sync {}'.format(resource))
