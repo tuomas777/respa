@@ -8,7 +8,8 @@ from freezegun import freeze_time
 from guardian.shortcuts import assign_perm, remove_perm
 
 from resources.models import (Day, Equipment, Period, Reservation, ReservationMetadataSet, ResourceEquipment,
-                              ResourceType)
+                              ResourceType, Resource)
+from resources.models.resource import ResourceConnection, Purpose
 from .utils import assert_response_objects, check_only_safe_methods_allowed
 
 
@@ -674,3 +675,16 @@ def test_available_between_with_period(list_url, resource_in_unit, resource_in_u
     response = user_api_client.get(list_url, params)
     assert response.status_code == 200
     assert_response_objects(response, expected_resources)
+
+
+@pytest.mark.django_db
+def test_resource_connections(resource_in_unit, user_api_client, guide_resource):
+    response = user_api_client.get(get_detail_url(resource_in_unit))
+    assert response.status_code == 200
+    connection_data = response.data['connections'][0]
+    assert connection_data['sub_resources'] == [guide_resource.id]
+    assert connection_data['purpose']['name']['fi'] == 'Opastus'
+    assert connection_data['reservation_requires'] is False
+    assert connection_data['reservation_begin_times_must_match'] is False
+    assert connection_data['reservation_end_times_must_match'] is False
+

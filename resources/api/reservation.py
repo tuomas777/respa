@@ -291,8 +291,20 @@ class ReservationSerializerBase(TranslatedModelSerializer, munigeo_api.GeoModelS
         }
 
 
+class SubReservationListSerializer(serializers.ListSerializer):
+    def to_representation(self, data):
+        data = data.exclude(state=Reservation.CANCELLED)
+        return super().to_representation(data)
+
+
 class SubReservationSerializer(ReservationSerializerBase):
+    class Meta(ReservationSerializerBase.Meta):
+        # this is need to get cancelled sub reservations excluded from reservation endpoint data
+        list_serializer_class = SubReservationListSerializer
+
     def validate(self, data):
+        data = super().validate(data)
+
         parent_data = self.parent.parent.initial_data
         parent_id = parent_data['resource']
 
@@ -305,24 +317,25 @@ class SubReservationSerializer(ReservationSerializerBase):
         parent_end = parse_datetime(parent_data['end'])
 
         if not (data['begin'] >= parent_begin and data['end'] <= parent_end):
-            raise ValidationError(_("Sub-reservation times must be inside the parent's times."))
+            raise ValidationError(_("Begin and end times must be inside the parent's begin and end times."))
 
         if resource_connection.reservation_begin_times_must_match:
             if parent_begin != data['begin']:
-                raise ValidationError(_("Sub-reservation's begin time much match the parent's begin time."))
+                raise ValidationError(_("Begin time must match the parent's begin time."))
 
         if resource_connection.reservation_end_times_must_match:
             if parent_end != data['end']:
-                raise ValidationError(_("Sub-reservation's end time much match the parent's end time."))
+                raise ValidationError(_("End time must match the parent's end time."))
 
         return data
 
 
 class ReservationSerializer(ReservationSerializerBase):
+    parent_reservation = serializers.PrimaryKeyRelatedField(queryset=Reservation.objects.all(), required=False)
     sub_reservations = SubReservationSerializer(many=True, required=False)
 
     class Meta(ReservationSerializerBase.Meta):
-        fields = ReservationSerializerBase.Meta.fields + ['sub_reservations']
+        fields = ReservationSerializerBase.Meta.fields + ['parent_reservation', 'sub_reservations']
 
     def create(self, validated_data):
         sub_reservations = validated_data.pop('sub_reservations', [])
@@ -351,6 +364,12 @@ class ReservationSerializer(ReservationSerializerBase):
                 _('These required sub resources are missing: {}.'.format(list(required_sub_resources - sub_resources)))
             )
 
+        parent_reservation = data.get('parent_reservation')
+        if parent_reservation:
+            if sub_resources:
+                raise ValidationError(_('Cannot have both "parent_reservation" and "sub_reservations".'))
+            if not data['resource'].is_admin(self.context['request'].user):
+                raise PermissionDenied(_('Other than admins cannot add sub reservations later.'))
         return data
 
 
@@ -637,6 +656,9 @@ class ReservationViewSet(munigeo_api.GeoModelAPIView, viewsets.ModelViewSet, Res
             new_state = Reservation.REQUESTED
         else:
             new_state = Reservation.CONFIRMED
+
+        if instance.is_sub_reservation():
+            instance.send_sub_reservation_created_separately_mail()
 
         instance.set_state(new_state, self.request.user)
 

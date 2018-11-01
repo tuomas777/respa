@@ -13,9 +13,10 @@ from parler.utils.context import switch_language
 from caterings.models import CateringOrder, CateringProvider
 
 from resources.models import (Period, Day, Reservation, Resource, ResourceGroup, ReservationMetadataField,
-                              ReservationMetadataSet)
+                              ReservationMetadataSet, Purpose)
 from notifications.models import NotificationTemplate, NotificationType
 from notifications.tests.utils import check_received_mail_exists
+from resources.models.resource import ResourceConnection
 from .utils import check_disallowed_methods, assert_non_field_errors_contain, assert_response_objects
 
 
@@ -31,6 +32,10 @@ DEFAULT_REQUIRED_RESERVATION_EXTRA_FIELDS = ('reserver_name', 'reserver_phone_nu
 User = get_user_model()
 
 
+def get_detail_url(reservation):
+    return reverse('reservation-detail', kwargs={'pk': reservation.pk})
+
+
 @pytest.fixture
 def list_url():
     return reverse('reservation-list')
@@ -38,7 +43,7 @@ def list_url():
 
 @pytest.fixture
 def detail_url(reservation):
-    return reverse('reservation-detail', kwargs={'pk': reservation.pk})
+    return get_detail_url(reservation)
 
 
 @pytest.mark.django_db
@@ -52,6 +57,38 @@ def day_and_period(resource_in_unit):
     )
     Day.objects.create(period=period, weekday=3, opens='08:00', closes='16:00')
     resource_in_unit.update_opening_hours()
+
+
+@pytest.fixture
+def guide_resource(person_resource_type, resource_in_unit):
+    guide = Resource.objects.create(
+        type=person_resource_type,
+        name='Opas Taja',
+        unit=resource_in_unit.unit,
+        max_reservations_per_user=2,
+        max_period=datetime.timedelta(hours=4),
+        reservable=True,
+    )
+    guide.purposes.add(Purpose.objects.create(
+        id='guidance',
+        name='Opastus',
+    ))
+
+    ResourceConnection.objects.create(
+        parent_resource=resource_in_unit,
+        sub_resource=guide,
+    )
+
+    period = Period.objects.create(
+        start='2115-04-01',
+        end='2115-05-01',
+        resource_id=guide.id,
+        name='test_guide_period'
+    )
+    Day.objects.create(period=period, weekday=3, opens='09:00', closes='15:00')
+    guide.update_opening_hours()
+
+    return guide
 
 
 @pytest.mark.django_db
@@ -83,6 +120,14 @@ def reservation_data_extra(reservation_data):
         'reserver_email_address': 'test.reserver@test.com',
     })
     return extra_data
+
+
+@pytest.fixture
+def guide_reservation_data(guide_resource, reservation_data):
+    data = reservation_data.copy()
+    data['resource'] = guide_resource.id
+    data['end'] = '2115-04-04T11:30:00+02:00'
+    return data
 
 
 @pytest.mark.django_db
@@ -124,6 +169,23 @@ def reservation3(resource_in_unit2, user2):
         host_name='markku',
         reserver_name='pirkko',
     )
+
+
+@pytest.fixture
+def reservation_with_sub_reservation(reservation, guide_resource):
+    Reservation.objects.create(
+        resource=guide_resource,
+        begin='2115-04-04T09:00:00+02:00',
+        end='2115-04-04T09:30:00+02:00',
+        user=reservation.user,
+        parent_reservation=reservation,
+    )
+    return reservation
+
+
+@pytest.fixture
+def sub_reservation(reservation_with_sub_reservation):
+    return reservation_with_sub_reservation.sub_reservations.first()
 
 
 @pytest.mark.django_db
@@ -1836,3 +1898,222 @@ def test_has_catering_order_field(
     response = user_api_client.get(detail_url)
     assert response.status_code == 200
     assert response.data['has_catering_order'] is False
+
+
+@pytest.mark.django_db
+def test_sub_reservation(user_api_client, list_url, reservation_data, resource_in_unit, guide_resource, guide_reservation_data, user):
+    reservation_data['sub_reservations'] = [guide_reservation_data]
+
+    response = user_api_client.post(list_url, data=reservation_data, format='json')
+    assert response.status_code == 201
+
+    reservation = Reservation.objects.filter(user=user, parent_reservation=None).latest('created_at')
+    assert reservation.resource == resource_in_unit
+    assert reservation.begin == dateparse.parse_datetime('2115-04-04T11:00:00+02:00')
+    assert reservation.end == dateparse.parse_datetime('2115-04-04T12:00:00+02:00')
+
+    sub_reservation = reservation.sub_reservations.last()
+    assert sub_reservation.user == user
+    assert sub_reservation.resource == guide_resource
+    assert sub_reservation.begin == dateparse.parse_datetime('2115-04-04T11:00:00+02:00')
+    assert sub_reservation.end == dateparse.parse_datetime('2115-04-04T11:30:00+02:00')
+
+
+@pytest.mark.django_db
+def test_sub_reservation_validation(user_api_client, list_url, reservation_data, resource_in_unit, guide_resource, guide_reservation_data, user):
+    guide_resource.reservable = False
+    guide_resource.save()
+    reservation_data['sub_reservations'] = [guide_reservation_data]
+
+    response = user_api_client.post(list_url, data=reservation_data, format='json')
+    assert response.status_code == 403
+    assert Reservation.objects.count() == 0
+
+
+@pytest.mark.parametrize('times', (
+    {'begin': '2115-04-04T10:00:00+02:00'},
+    {'end': '2115-04-04T14:30:00+02:00'},
+))
+@pytest.mark.django_db
+def test_sub_reservation_times(user_api_client, list_url, reservation_data, guide_resource, guide_reservation_data,
+                               times):
+    guide_reservation_data.update(times)
+    reservation_data['sub_reservations'] = [guide_reservation_data]
+
+    response = user_api_client.post(list_url, data=reservation_data, format='json')
+    assert response.status_code == 400
+    assert "Begin and end times must be inside the parent's begin and end times." in str(response.data)
+
+
+@pytest.mark.django_db
+def test_sub_reservation_begin_time_must_match_flag(user_api_client, list_url, reservation_data, guide_resource,
+                                                    guide_reservation_data):
+    guide_reservation_data['begin'] = '2115-04-04T11:30:00+02:00'
+    guide_reservation_data['end'] = '2115-04-04T12:00:00+02:00'
+    reservation_data['sub_reservations'] = [guide_reservation_data]
+    connection = guide_resource.connections_where_sub_resource.first()
+    connection.reservation_begin_times_must_match = True
+    connection.save()
+
+    response = user_api_client.post(list_url, data=reservation_data, format='json')
+    assert response.status_code == 400
+    assert "Begin time must match the parent's begin time." in str(response.data)
+
+
+@pytest.mark.django_db
+def test_sub_reservation_end_time_must_match_flag(user_api_client, list_url, reservation_data, guide_resource,
+                                                  guide_reservation_data):
+    reservation_data['sub_reservations'] = [guide_reservation_data]
+    connection = guide_resource.connections_where_sub_resource.first()
+    connection.reservation_end_times_must_match = True
+    connection.save()
+
+    response = user_api_client.post(list_url, data=reservation_data, format='json')
+    assert response.status_code == 400
+    assert "End time must match the parent's end time." in str(response.data)
+
+
+@pytest.mark.django_db
+def test_user_cannot_modify_reservation_with_sub_reservation(user_api_client, reservation, sub_reservation,
+                                                             reservation_data):
+    url = get_detail_url(reservation)
+
+    response = user_api_client.put(url, data=reservation_data)
+    assert response.status_code == 403
+
+    response = user_api_client.delete(url)
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_user_cannot_modify_sub_reservation(user_api_client, sub_reservation, reservation_data):
+    url = get_detail_url(sub_reservation)
+
+    response = user_api_client.put(url, data=reservation_data)
+    assert response.status_code == 403
+    response = user_api_client.delete(url)
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_staff_can_modify_and_cancel_sub_reservation(user_api_client, sub_reservation, reservation_data):
+    url = get_detail_url(sub_reservation)
+
+    user_api_client.user.is_general_admin = True
+    user_api_client.user.save()
+
+    response = user_api_client.put(url, data=reservation_data)
+    assert response.status_code == 200
+
+    response = user_api_client.delete(url)
+    assert response.status_code == 204
+
+
+@pytest.mark.django_db
+def test_user_can_modify_reservation_after_sub_reservation_cancelled(user_api_client, reservation, sub_reservation,
+                                                                     reservation_data):
+    sub_reservation.state = Reservation.CANCELLED
+    sub_reservation.save()
+    url = get_detail_url(reservation)
+
+    response = user_api_client.put(url, data=reservation_data)
+    assert response.status_code == 200
+
+    response = user_api_client.delete(url)
+    assert response.status_code == 204
+
+
+@pytest.mark.django_db
+def test_sub_reservation_in_api_data(user_api_client, reservation, sub_reservation):
+    url = get_detail_url(reservation)
+
+    response = user_api_client.get(url)
+    assert response.status_code == 200
+    sub_reservations_data = response.data['sub_reservations']
+    assert len(sub_reservations_data) == 1
+    sub_reservation_data = sub_reservations_data[0]
+    assert sub_reservation_data['id'] == sub_reservation.id
+
+
+@pytest.mark.django_db
+def test_cancelled_sub_reservation_should_not_be_in_api_data(user_api_client, reservation, sub_reservation):
+    sub_reservation.state = Reservation.CANCELLED
+    sub_reservation.save()
+    url = get_detail_url(reservation)
+
+    response = user_api_client.get(url)
+    assert response.status_code == 200
+    sub_reservations_data = response.data['sub_reservations']
+    assert len(sub_reservations_data) == 0
+
+
+@pytest.fixture
+def sub_reservation_cancelled_template():
+    return NotificationTemplate.objects.language('en').create(
+        type=NotificationType.SUB_RESERVATION_CANCELLED,
+        subject='Sub reservation cancelled.',
+        html_body='A sub reservation has been cancelled. '
+                  'Sub resource: {{ resource }} '
+                  'Parent resource: {{ parent_reservation.resource }}',
+    )
+
+
+@pytest.fixture
+def sub_reservation_created_separately_template():
+    return NotificationTemplate.objects.language('en').create(
+        type=NotificationType.SUB_RESERVATION_CREATED_SEPARATELY,
+        subject='Sub reservation created separately.',
+        html_body='A sub reservation has been created separately. '
+                  'Sub resource: {{ resource }} '
+                  'Parent resource: {{ parent_reservation.resource }}',
+    )
+
+
+@override_settings(RESPA_MAILS_ENABLED=True)
+@pytest.mark.django_db
+def test_sub_reservation_cancelled_mail(sub_reservation, general_admin, sub_reservation_cancelled_template):
+    parent_reservation = sub_reservation.parent_reservation
+    parent_reservation.refresh_from_db()
+    sub_reservation.refresh_from_db()
+
+    sub_reservation.set_state(Reservation.CANCELLED, general_admin)
+    assert len(mail.outbox) == 1
+    excepted_body = 'A sub reservation has been cancelled. Sub resource: {} Parent resource: {}'.format(
+        sub_reservation.resource.name, parent_reservation.resource.name
+    )
+    check_received_mail_exists(
+        'Sub reservation cancelled.', sub_reservation.parent_reservation.user.email, html_body=excepted_body
+    )
+
+
+@pytest.mark.django_db
+def test_user_cannot_add_sub_reservation_later(user_api_client, list_url, reservation, guide_reservation_data):
+    guide_reservation_data['parent_reservation'] = reservation.id
+    response = user_api_client.post(list_url, data=guide_reservation_data)
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_staff_add_sub_reservation_later(user_api_client, list_url, general_admin, reservation, guide_reservation_data):
+    user_api_client.force_authenticate(user=general_admin)
+    guide_reservation_data['parent_reservation'] = reservation.id
+    response = user_api_client.post(list_url, data=guide_reservation_data)
+    assert response.status_code == 201
+
+
+@override_settings(RESPA_MAILS_ENABLED=True)
+@pytest.mark.django_db
+def test_sub_reservation_created_separately_mail(user_api_client, list_url, general_admin, reservation, guide_reservation_data, sub_reservation_created_separately_template):
+    user_api_client.force_authenticate(user=general_admin)
+    guide_reservation_data['parent_reservation'] = reservation.id
+    response = user_api_client.post(list_url, data=guide_reservation_data)
+    assert response.status_code == 201
+
+    assert len(mail.outbox) == 1
+    excepted_body = 'A sub reservation has been created separately. Sub resource: {} Parent resource: {}'.format(
+        reservation.sub_reservations.first().resource.name, reservation.resource.name
+    )
+
+    check_received_mail_exists(
+        'Sub reservation created separately.', reservation.user.email, html_body=excepted_body
+    )

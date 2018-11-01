@@ -9,7 +9,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('resources', '0067_add_reservation_confirmed_notification_extra'),
+        ('resources', '0069_unit_auth'),
     ]
 
     operations = [

@@ -21,9 +21,12 @@ from resources.models import (
     Purpose, Reservation, Resource, ResourceImage, ResourceType, ResourceEquipment,
     TermsOfUse, Equipment, ReservationMetadataSet, ResourceDailyOpeningHours
 )
+
 from resources.models.resource import determine_hours_time_range
 
 from ..auth import is_general_admin, is_staff
+
+from resources.models.resource import determine_hours_time_range, ResourceConnection
 from .base import TranslatedModelSerializer, register_view, DRFFilterBooleanWidget
 from .reservation import ReservationSerializer
 from .unit import UnitSerializer
@@ -276,9 +279,37 @@ class SubResourceSerializer(ResourceSerializerBase):
     class Meta(ResourceSerializerBase.Meta):
         exclude = ResourceSerializerBase.Meta.exclude + ('sub_resources',)
 
+    """
+    def to_representation(self, obj):
+        data = super().to_representation(obj)
+        return [data]
+    """
+
+
+class ResourceConnectionSerializer(serializers.ModelSerializer):
+    #sub_resources = SubResourceSerializer(source='sub_resource')
+    sub_resources = serializers.PrimaryKeyRelatedField(source='sub_resource', read_only=True)
+    #purpose = serializers.SerializerMethodField()
+    purpose = PurposeSerializer(source='sub_resource.purposes.all.first')
+
+    class Meta:
+        model = ResourceConnection
+        fields = ('sub_resources', 'reservation_begin_times_must_match', 'reservation_end_times_must_match',
+                  'reservation_requires', 'purpose')
+
+    def get_purpose(self, obj):
+        return PurposeSerializer(obj.sub_resource.purposes.all()[0]).to_representation(obj.sub_resource.purposes.all()[0])
+
+    def to_representation(self, instance):
+        print('api version: %s' % self.context['request'].version)
+        data = super().to_representation(instance)
+        data['sub_resources'] = [data['sub_resources']] if data.get('sub_resources') else []
+        return data
+
 
 class ResourceSerializer(ResourceSerializerBase):
-    sub_resources = SubResourceSerializer(many=True)
+    # sub_resources = SubResourceSerializer(many=True)
+    connections = ResourceConnectionSerializer(source='connections_where_parent_resource', many=True)
 
 
 class ResourceDetailsSerializer(ResourceSerializer):

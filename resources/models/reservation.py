@@ -249,12 +249,27 @@ class Reservation(ModifiableModel):
             self.send_reservation_denied_mail()
         elif new_state == Reservation.CANCELLED:
             if user != self.user:
-                self.send_reservation_cancelled_mail()
+                if self.is_sub_reservation():
+                    self.send_sub_reservation_cancelled_mail()
+                else:
+                    self.send_reservation_cancelled_mail()
             reservation_cancelled.send(sender=self.__class__, instance=self,
                                        user=user)
 
         self.state = new_state
         self.save()
+
+    def can_create(self, user):
+        if not user:
+            return False
+
+        if self.resource.is_admin(user):
+            return True
+
+        if self.is_sub_reservation():
+            return False
+
+        return self.user == user
 
     def can_modify(self, user):
         if not user:
@@ -264,6 +279,10 @@ class Reservation(ModifiableModel):
         # modified or cancelled without reservation approve permission
         cannot_approve = not self.resource.can_approve_reservations(user)
         if self.need_manual_confirmation() and self.state == Reservation.CONFIRMED and cannot_approve:
+            return False
+
+        # currently sub reservations and reservations with sub reservations can only be modified by admins
+        if (self.is_sub_reservation() or self.has_sub_reservations()) and not self.resource.is_admin(user):
             return False
 
         return self.user == user or self.resource.can_modify_reservations(user)
@@ -290,6 +309,12 @@ class Reservation(ModifiableModel):
         begin = self.begin.astimezone(tz)
         end = self.end.astimezone(tz)
         return format_dt_range(translation.get_language(), begin, end)
+
+    def has_sub_reservations(self):
+        return self.sub_reservations.current().exists()
+
+    def is_sub_reservation(self):
+        return bool(self.parent_reservation)
 
     def __str__(self):
         if self.state != Reservation.CONFIRMED:
@@ -328,7 +353,7 @@ class Reservation(ModifiableModel):
         if self.access_code:
             validate_access_code(self.access_code, self.resource.access_code_type)
 
-    def get_notification_context(self, language_code, user=None, notification_type=None):
+    def get_notification_context(self, language_code, user=None, notification_type=None, nested=False):
         if not user:
             user = self.user
         with translation.override(language_code):
@@ -374,10 +399,16 @@ class Reservation(ModifiableModel):
                 if ground_plan_image_url:
                     context['resource_ground_plan_image_url'] = ground_plan_image_url
 
-            context['sub_reservations'] = [
-                r.get_notification_context(language_code, user, notification_type)
-                for r in self.sub_reservations.all()
-            ]
+            if self.parent_reservation:
+                if not nested:
+                    context['parent_reservation'] = self.parent_reservation.get_notification_context(
+                        language_code, user, notification_type, nested=True)
+            else:
+                if not nested:
+                    context['sub_reservations'] = [
+                        r.get_notification_context(language_code, user, notification_type, nested=True)
+                        for r in self.sub_reservations.all()
+                    ]
 
         return context
 
@@ -440,6 +471,13 @@ class Reservation(ModifiableModel):
 
     def send_reservation_created_with_access_code_mail(self):
         self.send_reservation_mail(NotificationType.RESERVATION_CREATED_WITH_ACCESS_CODE)
+
+    def send_sub_reservation_created_separately_mail(self):
+        self.send_reservation_mail(
+            NotificationType.SUB_RESERVATION_CREATED_SEPARATELY, user=self.parent_reservation.user)
+
+    def send_sub_reservation_cancelled_mail(self):
+        self.send_reservation_mail(NotificationType.SUB_RESERVATION_CANCELLED)
 
     def save(self, *args, **kwargs):
         self.duration = DateTimeTZRange(self.begin, self.end, '[)')
