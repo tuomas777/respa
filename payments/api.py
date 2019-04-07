@@ -48,6 +48,10 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         for order_line_data in order_lines_data:
             OrderLine.objects.create(order=order, **order_line_data)
 
+        from .payments import BamboraPayformPayments
+        payments = BamboraPayformPayments()
+        payments.order_post(order)
+
         return order
 
     def validate_order_lines(self, value):

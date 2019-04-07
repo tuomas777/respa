@@ -54,7 +54,7 @@ class Product(models.Model):
 
     def get_price_for_reservation(self, reservation: Reservation, rounded: bool = True) -> Decimal:
         pretax_price = self.get_pretax_price_for_reservation(reservation, rounded=False)
-        price = pretax_price * (1 + self.tax_percentage / 100)
+        price = pretax_price * (1 + Decimal(self.tax_percentage) / 100)
         if rounded:
             price = price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         return price
