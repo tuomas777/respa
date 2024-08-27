@@ -6,7 +6,7 @@ updates:
       interval: "weekly"
     commit-message:
       # Prefix all commit messages with "npm: "
-      prefix: "npm"
+      prefix: "deps"
 
   - package-ecosystem: "docker"
     directory: "/"
