@@ -33,5 +33,5 @@ updates:
     # Include a list of updated dependencies
     # with a prefix determined by the dependency group
     commit-message:
-      prefix: "pip prod"
-      prefix-development: "pip dev"
+      prefix: "deps"
+      prefix-development: "deps"
