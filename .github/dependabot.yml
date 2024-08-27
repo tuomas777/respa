@@ -3,6 +3,10 @@ updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    # Include a list of updated dependencies
+    # with a prefix determined by the dependency group
     commit-message:
-      prefix: "deps"
+      prefix: "pip prod"
+      prefix-development: "pip dev"
+
