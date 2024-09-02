@@ -7,89 +7,238 @@
 --no-binary psycopg2
 
 arrow==0.13.0
-asn1crypto==0.24.0        # via cryptography
-atomicwrites==1.2.1       # via pytest
-attrs==18.2.0             # via pytest
-babel==2.6.0              # via delorean
-certifi==2018.11.29       # via requests
-cffi==1.11.5              # via cryptography
-chardet==3.0.4            # via requests
-click==7.0                # via pip-tools
+    # via -r requirements.in
+asgiref==3.8.1
+    # via django
+asn1crypto==0.24.0
+    # via cryptography
+atomicwrites==1.2.1
+    # via pytest
+attrs==18.2.0
+    # via pytest
+babel==2.6.0
+    # via delorean
+certifi==2018.11.29
+    # via requests
+cffi==1.11.5
+    # via cryptography
+chardet==3.0.4
+    # via requests
+click==7.0
+    # via pip-tools
 coverage==4.5.2
-cryptography==2.5         # via requests-ntlm
+    # via
+    #   -r requirements.in
+    #   pytest-cov
+cryptography==2.5
+    # via requests-ntlm
 daemonize==2.5.0
+    # via -r requirements.in
 database-sanitizer==0.4.0
-defusedxml==0.5.0         # via python3-openid
+    # via
+    #   -r requirements.in
+    #   django-sanitized-dump
 delorean==1.0.0
+    # via -r requirements.in
+django==5.1
+    # via
+    #   -r requirements.in
+    #   django-admin-json-editor
+    #   django-allauth
+    #   django-anymail
+    #   django-filter
+    #   django-helusers
+    #   django-jinja
+    #   django-mptt
+    #   django-munigeo
+    #   django-reversion
+    #   drf-oidc-auth
+    #   easy-thumbnails
 django-admin-json-editor==0.1.5
-django-allauth==0.38.0
+    # via -r requirements.in
+django-allauth==64.2.0
+    # via -r requirements.in
 django-anymail==5.0
-django-appconf==1.0.2     # via django-image-cropping
+    # via -r requirements.in
+django-appconf==1.0.2
+    # via django-image-cropping
 django-cors-headers==2.4.0
+    # via -r requirements.in
 django-enumfields==1.0.0
+    # via -r requirements.in
 django-environ==0.4.5
+    # via -r requirements.in
 django-filter==2.1.0
+    # via -r requirements.in
 django-grappelli==2.12.2
+    # via -r requirements.in
 django-guardian==1.4.9
+    # via -r requirements.in
 django-helusers==0.4.2
+    # via -r requirements.in
 django-hstore==1.4.2
+    # via -r requirements.in
 django-image-cropping==1.2.0
+    # via -r requirements.in
 django-jinja==2.4.1
-django-js-asset==1.1.0    # via django-mptt
+    # via -r requirements.in
+django-js-asset==1.1.0
+    # via django-mptt
 django-modeltranslation==0.13b1
-django-mptt==0.9.1        # via django-munigeo
+    # via -r requirements.in
+django-mptt==0.9.1
+    # via django-munigeo
 django-munigeo==0.3.3
-django-parler-rest==2.0   # via django-munigeo
+    # via -r requirements.in
 django-parler==1.9.2
+    # via
+    #   -r requirements.in
+    #   django-munigeo
+    #   django-parler-rest
+django-parler-rest==2.0
+    # via django-munigeo
 django-reversion==3.0.2
+    # via -r requirements.in
 django-sanitized-dump==0.2.2
-django==2.1.7
-djangorestframework-jwt==1.11.0
+    # via -r requirements.in
 djangorestframework==3.9.1
-drf-oidc-auth==0.9        # via django-helusers
+    # via
+    #   -r requirements.in
+    #   django-parler-rest
+    #   drf-oidc-auth
+djangorestframework-jwt==1.11.0
+    # via -r requirements.in
+drf-oidc-auth==0.9
+    # via django-helusers
 easy-thumbnails==2.5
+    # via -r requirements.in
 faker==1.0.2
+    # via -r requirements.in
 flake8==3.6.0
+    # via -r requirements.in
 freezegun==0.3.11
-future==0.17.1            # via pyjwkest
-humanize==0.5.1           # via delorean
+    # via -r requirements.in
+future==0.17.1
+    # via pyjwkest
+humanize==0.5.1
+    # via delorean
 icalendar==4.0.3
-idna==2.8                 # via requests
+    # via -r requirements.in
+idna==2.8
+    # via requests
 iso8601==0.1.12
+    # via -r requirements.in
 jinja2==2.10
+    # via
+    #   -r requirements.in
+    #   django-jinja
 jsonschema==2.6.0
+    # via -r requirements.in
 lxml==4.3.0
-markupsafe==1.1.0         # via jinja2
-mccabe==0.6.1             # via flake8
-more-itertools==5.0.0     # via pytest
-ntlm-auth==1.2.0          # via requests-ntlm
-oauthlib==3.0.0           # via requests-oauthlib
-pillow==5.4.1             # via easy-thumbnails
+    # via
+    #   -r requirements.in
+    #   python-docx
+markupsafe==1.1.0
+    # via jinja2
+mccabe==0.6.1
+    # via flake8
+more-itertools==5.0.0
+    # via pytest
+ntlm-auth==1.2.0
+    # via requests-ntlm
+pillow==5.4.1
+    # via easy-thumbnails
 pip-tools==3.2.0
-pluggy==0.8.1             # via pytest
+    # via -r requirements.in
+pluggy==0.8.1
+    # via pytest
 psycopg2==2.7.6.1
-py==1.7.0                 # via pytest
-pycodestyle==2.4.0        # via flake8
-pycparser==2.19           # via cffi
-pycryptodomex==3.7.3      # via pyjwkest
-pyflakes==2.0.0           # via flake8
-pyjwkest==1.4.0           # via drf-oidc-auth
+    # via -r requirements.in
+py==1.7.0
+    # via pytest
+pycodestyle==2.4.0
+    # via flake8
+pycparser==2.19
+    # via cffi
+pycryptodomex==3.7.3
+    # via pyjwkest
+pyflakes==2.0.0
+    # via flake8
+pyjwkest==1.4.0
+    # via drf-oidc-auth
 pyjwt==1.7.1
-pytest-cov==2.6.1
-pytest-django==3.4.5
+    # via
+    #   -r requirements.in
+    #   djangorestframework-jwt
 pytest==4.1.1
-python-dateutil==2.7.5    # via arrow, delorean, faker, freezegun, icalendar
+    # via
+    #   -r requirements.in
+    #   pytest-cov
+    #   pytest-django
+pytest-cov==2.6.1
+    # via -r requirements.in
+pytest-django==3.4.5
+    # via -r requirements.in
+python-dateutil==2.7.5
+    # via
+    #   arrow
+    #   delorean
+    #   faker
+    #   freezegun
+    #   icalendar
 python-docx==0.8.10
-python3-openid==3.1.0     # via django-allauth
+    # via -r requirements.in
 pytz==2018.9
-pyyaml==5.1               # via database-sanitizer, django-munigeo, django-sanitized-dump
+    # via
+    #   -r requirements.in
+    #   babel
+    #   delorean
+    #   icalendar
+    #   tzlocal
+pyyaml==5.1
+    # via
+    #   database-sanitizer
+    #   django-munigeo
+    #   django-sanitized-dump
 raven==6.10.0
-requests-cache==0.4.13    # via django-munigeo
-requests-ntlm==1.1.0
-requests-oauthlib==1.2.0  # via django-allauth
+    # via -r requirements.in
 requests==2.21.0
+    # via
+    #   -r requirements.in
+    #   django-anymail
+    #   django-helusers
+    #   django-munigeo
+    #   pyjwkest
+    #   requests-cache
+    #   requests-ntlm
+requests-cache==0.4.13
+    # via django-munigeo
+requests-ntlm==1.1.0
+    # via -r requirements.in
 six==1.12.0
-text-unidecode==1.2       # via faker
-tzlocal==1.5.1            # via delorean
-urllib3==1.24.1           # via requests
+    # via
+    #   -r requirements.in
+    #   cryptography
+    #   database-sanitizer
+    #   django-anymail
+    #   django-guardian
+    #   django-image-cropping
+    #   django-munigeo
+    #   django-sanitized-dump
+    #   faker
+    #   freezegun
+    #   more-itertools
+    #   pip-tools
+    #   pyjwkest
+    #   pytest
+    #   python-dateutil
+sqlparse==0.5.1
+    # via django
+text-unidecode==1.2
+    # via faker
+tzlocal==1.5.1
+    # via delorean
+urllib3==1.24.1
+    # via requests
 xlsxwriter==1.1.2
+    # via -r requirements.in
