@@ -24,7 +24,7 @@ Table of Contents
 - [Documentation](#documentation)
 - [License](#license)
 
-foo
+foo2
 
 Contributing
 ------------
